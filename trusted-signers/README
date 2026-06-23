@@ -1,0 +1,27 @@
+Trusted signers
+===============
+
+This directory is the allowlist for SSH commit signatures. The script
+concatenates every regular file here into a single OpenSSH allowed_signers
+file at verification time.
+
+One file per signer. Each file contains one or more lines:
+
+    <committer-email> <key-type> <key-base64>
+
+Example (file named "sven"):
+
+    sven.seeberg@tuerantuer.org ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA...
+
+Example (file named "renovate-bot"):
+
+    renovate-bot@tuerantuer.org ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA...
+
+Notes
+-----
+- The principal (the email) must match the COMMITTER email on the commits
+  you want to trust. Confirm what email your Renovate bot commits with.
+- Optional time windows are supported via allowed_signers options, e.g.:
+    sven@... valid-before=20270101 ssh-ed25519 AAAA...
+- Deploy real keys to /etc/salt-git-autoapply/trusted-signers/ (the path set
+  in config.yaml). This in-repo directory is just an example/placeholder.
