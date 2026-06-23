@@ -49,13 +49,13 @@ See `config.example.yaml`. Rules:
 rules:
   - name: lunes-cms
     match: '^Renovate: Update dependency digitalfabrik/lunes-cms'
-    minion: 'lunes-prod.tuerantuer.org'
+    minion: 'lunes-prod.example.com'
     action: apply
     state: lunes-cms
 
   - name: wordpress
     match: '^Wordpress: .*\b(?P<host>wordpress\d+)\b'
-    minion: '{host}.gcms.verdigado.net'
+    minion: '{host}.example.com'
     action: highstate
 ```
 
