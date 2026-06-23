@@ -1,0 +1,11 @@
+[Unit]
+Description=Run salt-git-autoapply every minute
+
+[Timer]
+OnCalendar=*:0/1
+# If a run is still in progress when the next tick fires, systemd skips it
+# (the service is still active), so runs never overlap.
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

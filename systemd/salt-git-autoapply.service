@@ -1,0 +1,10 @@
+[Unit]
+Description=Pull /srv/salt and apply states from new commit messages
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/salt_git_autoapply.py --config /etc/salt-git-autoapply/config.yaml
+# Runs as root so it can drive the salt master and read /srv/salt.
+User=root

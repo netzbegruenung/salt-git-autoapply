@@ -1,0 +1,40 @@
+# Configuration for salt-git-autoapply.
+# Copy to /etc/salt-git-autoapply/config.yaml and edit.
+
+# Path to the Salt git working copy that gets pulled.
+repo_path: /srv/salt
+
+# Path to the salt master CLI.
+salt_binary: /usr/bin/salt
+
+# Seconds to wait for a single salt command before giving up.
+command_timeout: 1800
+
+# Require every newly fetched commit to carry a trusted SSH signature.
+# If any commit in the fetched range is unsigned or signed by a key that
+# is not in trusted_signers_dir, nothing is merged or applied.
+require_signed_commits: true
+
+# Directory of allowed-signer files (one file per signer). Each file holds
+# one or more lines in OpenSSH allowed_signers format:
+#   <committer-email> <key-type> <key-base64>
+# e.g.
+#   sven.seeberg@tuerantuer.org ssh-ed25519 AAAAC3NzaC1lZDI1NTE5...
+# The principal (email) must match the committer email on the commits.
+trusted_signers_dir: /etc/salt-git-autoapply/trusted-signers
+
+# Rules are matched (regex .search) against each new commit's subject line.
+# Named capture groups can be substituted into 'minion' and 'state' using
+# {group_name}. A commit may match several rules; identical resulting
+# commands are de-duplicated and each is run once.
+rules:
+  - name: lunes-cms
+    match: '^Renovate: Update dependency digitalfabrik/lunes-cms'
+    minion: 'lunes-prod.tuerantuer.org'
+    action: apply
+    state: lunes-cms
+
+  - name: wordpress
+    match: '^Wordpress: .*\b(?P<host>wordpress\d+)\b'
+    minion: '{host}.gcms.verdigado.net'
+    action: highstate
