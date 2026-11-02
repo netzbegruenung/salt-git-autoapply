@@ -49,6 +49,9 @@ def load_config(path: str) -> dict:
     config.setdefault("command_timeout", 1800)
     config.setdefault("require_signed_commits", False)
     config.setdefault("trusted_signers_dir", None)
+    config.setdefault(
+        "rejected_state_path", "/var/lib/salt-git-autoapply/rejected-commit"
+    )
     config.setdefault("rules", [])
 
     if config["require_signed_commits"] and not config["trusted_signers_dir"]:
@@ -84,7 +87,13 @@ def load_config(path: str) -> dict:
 
 
 def git(repo: str, *args: str, check: bool = True) -> subprocess.CompletedProcess:
-    cmd = ["git", "-C", repo, "-c", f"safe.directory={repo}", *args]
+    cmd = [
+        "git", "-C", repo,
+        "-c", f"safe.directory={repo}",
+        "-c", "maintenance.autoDetach=false",
+        "-c", "gc.autoDetach=false",
+        *args,
+    ]
     return subprocess.run(
         cmd, check=check, capture_output=True, text=True
     )
@@ -128,18 +137,41 @@ def verify_commit(repo: str, sha: str, allowed_signers: str) -> bool:
     return False
 
 
-def new_commits(repo: str) -> list[str]:
-    """SHAs in HEAD..@{u}, oldest first. Empty if nothing was fetched."""
+def upstream_sha(repo: str) -> str:
     try:
-        upstream = git(repo, "rev-parse", "@{u}").stdout.strip()
+        return git(repo, "rev-parse", "@{u}").stdout.strip()
     except subprocess.CalledProcessError as exc:
         raise CycleError(
             "no upstream tracking branch configured for the current branch "
             f"({exc.stderr.strip()})"
         )
-    rng = f"HEAD..{upstream}"
-    out = git(repo, "rev-list", "--reverse", rng).stdout.strip()
+
+
+def new_commits(repo: str, upstream: str) -> list[str]:
+    """SHAs in HEAD..upstream, oldest first. Empty if nothing was fetched."""
+    out = git(repo, "rev-list", "--reverse", f"HEAD..{upstream}").stdout.strip()
     return out.split("\n") if out else []
+
+
+def read_rejected(path: str) -> str | None:
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            return fh.read().strip() or None
+    except FileNotFoundError:
+        return None
+
+
+def set_rejected(path: str, sha: str) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(sha + "\n")
+
+
+def clear_rejected(path: str) -> None:
+    try:
+        os.remove(path)
+    except FileNotFoundError:
+        pass
 
 
 def commit_subject(repo: str, sha: str) -> str:
@@ -193,7 +225,13 @@ def run_cycle(config: dict, dry_run: bool) -> int:
 
     git(repo, "fetch")
 
-    commits = new_commits(repo)
+    upstream = upstream_sha(repo)
+    rejected_path = config["rejected_state_path"]
+    if not dry_run and read_rejected(rejected_path) == upstream:
+        log.debug("upstream %s was already rejected; skipping", upstream[:12])
+        return 2
+
+    commits = new_commits(repo, upstream)
     if not commits:
         log.info("no new commits; nothing to do")
         return 0
@@ -204,11 +242,15 @@ def run_cycle(config: dict, dry_run: bool) -> int:
             allowed = build_allowed_signers(config["trusted_signers_dir"], tmp)
             for sha in commits:
                 if not verify_commit(repo, sha, allowed):
+                    if not dry_run:
+                        set_rejected(rejected_path, upstream)
                     raise CycleError(
                         f"commit {sha[:12]} is unsigned or untrusted; "
                         "aborting without applying anything"
                     )
         log.info("all %d commit(s) have a trusted signature", len(commits))
+        if not dry_run:
+            clear_rejected(rejected_path)
 
     seen: set[SaltCommand] = set()
     ordered: list[SaltCommand] = []

@@ -23,6 +23,12 @@ require_signed_commits: true
 # The principal (email) must match the committer email on the commits.
 trusted_signers_dir: /etc/salt-git-autoapply/trusted-signers
 
+# Where the SHA of a rejected upstream tip is remembered. While upstream
+# still points at that commit, later runs exit early instead of re-verifying
+# and re-logging the same rejection every tick. The run still exits non-zero,
+# so the unit stays in a failed state until the commit is signed or replaced.
+rejected_state_path: /var/lib/salt-git-autoapply/rejected-commit
+
 # Rules are matched (regex .search) against each new commit's subject line.
 # Named capture groups can be substituted into 'minion' and 'state' using
 # {group_name}. A commit may match several rules; identical resulting
